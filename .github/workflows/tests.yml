@@ -1,0 +1,49 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        working-directory: agent_app
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check agent_app/
+          ruff format --check agent_app/
+
+      - name: Run agent_app tests
+        run: pytest agent_app/tests/ -v --cov=agent_app --cov-report=term-missing --cov-fail-under=40
+        env:
+          # Provide minimal non-empty env vars so config loading doesn't fail
+          AZURE_EXISTING_AIPROJECT_ENDPOINT: "https://example.services.ai.azure.com/api/projects/test"
+          AZURE_EXISTING_AGENT_ID: "test-agent-id"
+          MCP_DEMO_URL: "http://localhost:7070/api"
+
+      - name: Run MCP protocol tests
+        run: pytest tests/ -v
+        env:
+          AZURE_EXISTING_AIPROJECT_ENDPOINT: "https://example.services.ai.azure.com/api/projects/test"
+          AZURE_EXISTING_AGENT_ID: "test-agent-id"
+          MCP_DEMO_URL: "http://localhost:7070/api"

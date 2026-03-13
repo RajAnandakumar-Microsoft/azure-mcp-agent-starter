@@ -1,185 +1,193 @@
 # azure-mcp-agent-starter
 
-This repository demonstrates cross-system traceability using Azure AI Foundry Agent Service, the Microsoft Agent Framework, and the Model Context Protocol (MCP). The agent navigates and links artifacts across requirements management (JAMA), work items (Azure DevOps), and architecture (IcePanel) systems.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter/actions/workflows/tests.yml/badge.svg)](https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Current Status
+A starter kit for building Azure AI Foundry agents that connect to **multiple MCP servers simultaneously** — with config-driven server registration, per-server authentication, and read-only safety enforcement built in.
 
-**Phase 1: Agent with Local Tools (✅ Complete)**
-- Azure AI Foundry Agent Service integration
-- Multi-turn conversation support
-- 7 read-only tools for search/get/relationships
-- Environment-based configuration
+Clone it, fill in your `.env`, and have a working multi-server agent running in under 10 minutes.
 
-**Phase 2: MCP Protocol Servers (✅ Complete)**
-- Three MCP servers (JAMA, ADO, IcePanel) as Azure Functions
-- JSON-RPC 2.0 protocol implementation
-- Demo datasets with cross-system relationships
-- Deep-linking for all artifacts
-- Single unified demo server on port 7070 (JAMA + IcePanel)
-- ADO MCP: stdio connection to official Microsoft Azure DevOps MCP server
+---
 
-**Phase 3: Cloud Data Layer (⏳ Next)**
-- Move demo data to Azure Blob Storage or Cosmos DB
-- Deploy MCP servers to Azure Functions
-- Production-ready data access patterns
+## What this kit gives you
 
-## Repository Structure
+| Feature | Description |
+|---|---|
+| Config-driven servers | Add/remove MCP servers by editing `mcp_servers.yaml` — no code changes |
+| Per-server auth | API key, PAT, OAuth stub, or anonymous — declared per-server in YAML |
+| Read-only guardrails | Registry blocks write-prefixed tool calls before they reach any server |
+| Response normalization | Consistent envelope across heterogeneous MCP server responses |
+| Demo MCP server | Azure Functions app with JAMA + IcePanel fixture data to run locally |
+| 100+ tests | Full coverage of auth providers, registry, normalizer, and MCP protocol |
 
-```
-v2/
-├── .github/
-│   └── copilot-instructions.md   # Copilot behavior rules (single source of truth)
-├── agent_app/                     # Main agent application
-│   ├── config.py                  # Environment loading & typed config
-│   ├── main.py                    # Entry point & agent run loop
-│   ├── tools.py                   # Agent tool definitions (calls MCP servers)
-│   ├── mcp_client.py              # JSON-RPC 2.0 MCP client
-│   ├── requirements.txt           # Python dependencies
-│   ├── venv/                      # Virtual environment
-│   └── tests/                     # Agent tests
-├── mcp_servers/                   # MCP protocol servers
-│   ├── shared_data.py             # Demo datasets (JAMA, ADO, IcePanel)
-│   ├── mcp_protocol.py            # JSON-RPC 2.0 utilities
-│   ├── mcp_response.py            # MCP response formatting
-│   ├── jama_mcp/                  # JAMA MCP server (port 7071)
-│   │   ├── function_app.py        # Azure Function with MCP endpoint
-│   │   ├── host.json
-│   │   ├── local.settings.json
-│   │   └── requirements.txt
-│   ├── (ado_mcp removed - using official Microsoft ADO MCP via stdio)
-│   │   └── (same structure)
-│   └── icepanel_mcp/              # IcePanel MCP server (port 7073)
-│       └── (same structure)
-├── ARCHITECTURE.md                # Complete data flow diagram
-├── MCP_IMPLEMENTATION.md          # MCP protocol documentation
-├── test_mcp_protocol.py           # MCP protocol compliance tests
-├── test_mcp_endpoint.py           # Endpoint testing script
-├── .env.example                   # Environment variable template
-├── pytest.ini                     # Pytest configuration
-├── ruff.toml                      # Ruff linter/formatter config
-└── README.md                      # This file
-```
-
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Azure CLI (`az login` for authentication)
-- Azure Functions Core Tools (`npm install -g azure-functions-core-tools@4`)
-- Azure AI Foundry project with deployed agent
-
-### Setup
-
-**1. Install Agent Dependencies**
-```powershell
-cd agent_app
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-**2. Configure Environment**
-```powershell
-cp .env.example .env
-# Edit .env with your Azure AI Foundry credentials:
-# - AZURE_PROJECT_ENDPOINT
-# - AZURE_AGENT_ID
-```
-
-**3. Start MCP Servers (3 terminals)**
-
-Terminal 1 - JAMA MCP:
-```powershell
-cd mcp_servers\jama_mcp
-func start --port 7071
-```
-
-Terminal 2 - ADO MCP:
-```powershell
-# ADO MCP: No server to start - uses stdio to official Microsoft MCP
-# (Auto-started by agent when needed)
-```
-
-Terminal 3 - IcePanel MCP:
-```powershell
-cd mcp_servers\icepanel_mcp
-func start --port 7073
-```
-
-**4. Run the Agent (4th terminal)**
-```powershell
-cd agent_app
-.\venv\Scripts\Activate.ps1
-cd ..
-python -m agent_app.main
-```
-
-### Test Queries
-
-Try these to see the cross-system traceability in action:
-
-- `Search for authentication requirements`
-- `Get details for REQ-001`
-- `What are the related artifacts for REQ-001?` ← **Shows the magic!**
-- `Find work items assigned to Jane Smith`
-- `Search for OAuth work items`
-- `Find authentication components`
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for complete data flow diagrams.
-
-## Development Standards
-
-This PoC follows strict standards defined in [.github/copilot-instructions.md](.github/copilot-instructions.md):
-
-- **Language:** Python 3.10+
-- **Framework:** Microsoft Agent Framework
-- **Client:** `AzureOpenAIResponsesClient` (Responses API)
-- **Authentication:** Azure AD preferred; API key for demos
-- **Type Safety:** All functions must include type hints
-- **Formatting:** Ruff (88 char line length)
-- **Testing:** pytest with minimum 40% coverage for demos
-- **Security:** No hardcoded secrets; use .env + Key Vault
+---
 
 ## Architecture
 
-**Current Implementation:**
 ```
-User Question
-    ↓
-Azure AI Foundry Agent (Cloud)
-    ↓
-agent_app/tools.py (Local)
-    ↓
-agent_app/mcp_client.py (JSON-RPC 2.0)
-    ↓
-MCP Servers (Local Azure Functions)
-  - Demo MCP (port 7070) - JAMA requirements & IcePanel components
-  - ADO MCP (stdio) - Official Microsoft Azure DevOps MCP server
-    ↓
-mcp_servers/shared_data.py (Demo Data)
-    ↓
-Formatted Response with Deep Links
+User  ──►  main.py  ──►  AgentsClient (Azure AI Foundry)
+                               │
+                          tools.py  (agent tool definitions)
+                               │
+                        ServerRegistry  (mcp_servers.yaml)
+                               │
+                     AuthProvider  (per-server auth)
+                               │
+                          MCP server  (HTTP / stdio)
+                               │
+                          Normalizer  (standard envelope)
+                               │
+                          ◄── response with deep links
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed flow diagrams and [MCP_IMPLEMENTATION.md](MCP_IMPLEMENTATION.md) for MCP protocol documentation.
+The `ServerRegistry` reads `mcp_servers.yaml` at startup. Add a new server by adding a YAML entry — no Python changes required.
 
-## Key Design Decisions
+---
 
-See [.github/copilot-instructions.md](.github/copilot-instructions.md) for full rationale.
+## Quick start
 
-- **Responses API over Chat Completions:** Modern, recommended path
-- **Demo datasets only:** No customer SaaS API calls
-- **Read-only tools:** Search/get/list/relationships only
-- **Deep links required:** Every artifact must include a clickable link
-- **Azure Functions for MCP:** Simplest demo endpoint hosting
+> Full details in [QUICKSTART.md](QUICKSTART.md).
+
+**Prerequisites:**
+
+| Tool | Version | Why |
+|---|---|---|
+| Python | 3.10+ | Agent runtime |
+| Azure CLI | latest | `az login` for Foundry auth |
+| Node.js + Azure Functions Core Tools | 18+ / v4 | Run demo MCP server locally |
+| Azure AI Foundry project | — | Deployed agent required |
+
+**Steps:**
+
+```bash
+# 1. Clone and install
+git clone https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter.git
+cd azure-mcp-agent-starter/agent_app
+pip install -r requirements.txt
+
+# 2. Configure
+cp .env.example .env
+# fill in AZURE_EXISTING_AIPROJECT_ENDPOINT and AZURE_EXISTING_AGENT_ID
+
+# 3. Log in
+az login
+
+# 4. Start the demo MCP server (separate terminal)
+cd ../demo_mcp_server
+func start --port 7070
+
+# 5. Run the agent
+python -m agent_app.main
+```
+
+Try asking:
+- `show me authentication requirements`
+- `what's related to REQ-001?`
+- `find architecture components tagged with "API Gateway"`
+
+---
+
+## Adding your own MCP server (4 steps, no code)
+
+**1.** Add an entry to `mcp_servers.yaml`:
+
+```yaml
+servers:
+  - label: my_system
+    description: "My system"
+    transport: http
+    url: "${MY_SYSTEM_URL:-http://localhost:7071/api}"
+    auth:
+      type: api_key
+      header: "x-functions-key"
+      env_var: MY_SYSTEM_KEY
+    read_only: true
+```
+
+**2.** Add the variable to `.env`:
+```
+MY_SYSTEM_KEY=your-key
+```
+
+**3.** Add a tool in `agent_app/tools.py`:
+```python
+@ai_function
+async def search_my_system(query: str) -> str:
+    """Search my system for artifacts matching query."""
+    client = get_mcp_client("my_system")
+    return await client.call_tool("search", {"q": query})
+```
+
+**4.** Restart the agent. The new server is registered automatically.
+
+See [examples/README.md](examples/README.md) for auth recipes, stdio servers, and response normalization.
+
+---
+
+## Repository layout
+
+```
+azure-mcp-agent-starter/
+├── .github/
+│   └── copilot-instructions.md    # Copilot rules (single source of truth)
+├── agent_app/                      # Main agent application
+│   ├── auth/                       # AuthProvider protocol + 4 implementations
+│   ├── registry/                   # Config-driven ServerRegistry
+│   ├── normalization/              # Response envelope normalizer
+│   ├── tests/                      # 100+ unit tests
+│   ├── config.py                   # Environment loading & typed config
+│   ├── main.py                     # Agent run loop (entry point)
+│   ├── tools.py                    # Agent tool definitions
+│   ├── mcp_client.py               # JSON-RPC 2.0 HTTP + stdio clients
+│   └── mcp_utils.py                # Parallel MCP fetch utilities
+├── demo_mcp_server/                # Azure Functions demo MCP server
+│   ├── function_app.py             # MCP endpoint (JAMA + IcePanel demo data)
+│   ├── demo_data.py                # Demo fixtures
+│   └── mcp_response.py             # Standard response envelope helper
+├── tests/                          # Integration tests (MCP protocol + endpoint)
+├── examples/                       # Guides for extending the kit
+│   ├── README.md                   # Extension guide
+│   ├── auth_patterns.md            # Auth recipe examples
+│   └── custom_http_server/README.md
+├── mcp_servers.yaml                # Server registry (edit to add/remove servers)
+├── .env.example                    # Environment variable template
+├── QUICKSTART.md                   # 10-minute setup guide
+├── ruff.toml                       # Linter / formatter config
+└── README.md                       # This file
+```
+
+---
+
+## Running tests
+
+```bash
+pytest agent_app/tests/ -v
+```
+
+```bash
+pytest tests/ -v          # MCP protocol + endpoint integration tests
+```
+
+---
+
+## Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Agent client | `AzureOpenAIResponsesClient` | Modern Responses API — preferred over Chat Completions |
+| AI platform | Azure AI Foundry | Multi-provider models, project-scoped management |
+| MCP host | Azure Functions | Simplest demo endpoint; Container Apps as fallback |
+| Data layer | JSON fixtures | Start simple; migrate to Blob/Cosmos when volume requires it |
+| Live APIs | Demo datasets only | Prevents real tenant dependencies in a starter kit |
+
+---
 
 ## Contributing
 
-1. Follow the standards in [.github/copilot-instructions.md](.github/copilot-instructions.md)
-2. Run `ruff format .` before committing
-3. Ensure tests pass: `pytest`
-4. Maintain minimum 40% coverage for demo code
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Internal Microsoft / Customer PoC. Not for public distribution.
+[MIT](LICENSE)
+
