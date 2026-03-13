@@ -1,5 +1,5 @@
 """
-Olympus Traceability Agent - Main Entry Point.
+MCP Traceability Agent - Main Entry Point.
 
 This script runs a local agent that demonstrates Azure AI Foundry capabilities
 using the Microsoft Agent Framework.
@@ -377,7 +377,7 @@ def main_async() -> None:
     # Display welcome header
     console.print()
     console.print(Panel.fit(
-        "[bold cyan]Olympus Traceability Agent[/bold cyan]\n"
+        "[bold cyan]MCP Traceability Agent[/bold cyan]\n"
         "[dim]Connected to Azure AI Foundry[/dim]",
         border_style="cyan",
     ))

@@ -1,0 +1,114 @@
+# MCP Server Registry
+#
+# Define every MCP server the agent should connect to here.
+# No code changes are needed when adding, removing, or reconfiguring servers.
+#
+# FIELD REFERENCE
+# ---------------
+# label        - Unique name used in code to identify this server (required).
+# description  - Human-readable description (optional).
+# transport    - "http" (remote/Azure Functions) or "stdio" (local subprocess).
+# url          - Base URL for HTTP servers. Supports ${ENV_VAR:-default} syntax.
+# command      - Executable for stdio servers (e.g., "node", "python").
+# args         - List of CLI arguments for stdio servers. Env vars interpolated.
+# auth         - Authentication block (see types below).
+# read_only    - When true (default), write/mutation tools are blocked at the
+#                registry level before they reach the agent.
+#
+# AUTH TYPES
+# ----------
+# type: none       → No credentials (anonymous / local dev servers).
+#
+# type: api_key    → HTTP header injection (e.g., Azure Function keys).
+#   header:  HTTP header name (e.g., "x-functions-key")
+#   env_var: Name of the env var that holds the key.
+#
+# type: pat        → Personal Access Token.
+#   env_var:           Env var holding the PAT value.
+#   stdio_auth_flag:   Optional CLI flag (e.g., "--authentication")
+#   stdio_auth_value:  Value for the flag (e.g., "envvar")
+#   (For HTTP servers, the PAT is sent as "Authorization: Bearer <token>".)
+#
+# type: oauth      → Delegated OAuth (stub — see agent_app/auth/oauth.py).
+#   tenant_id:  Azure AD tenant GUID (optional).
+#   client_id:  App registration client ID (optional).
+#   scopes:     List of OAuth scopes.
+#
+# ENV VAR INTERPOLATION
+# ---------------------
+# Use ${VAR} or ${VAR:-default} in any string field.
+# ${VAR}          → value of VAR, or empty string if unset.
+# ${VAR:-default} → value of VAR if set and non-empty, else "default".
+
+servers:
+
+  # ---------------------------------------------------------------------------
+  # Demo: JAMA Requirements (HTTP, Azure Function)
+  # This demo server is in demo_mcp_server/ and serves JAMA + IcePanel tools.
+  # ---------------------------------------------------------------------------
+  - label: jama
+    description: "JAMA Contour – requirements management (demo dataset)"
+    transport: http
+    url: "${MCP_DEMO_URL:-http://localhost:7070/api}"
+    auth:
+      type: api_key
+      header: "x-functions-key"
+      env_var: JAMA_FUNCTION_KEY  # Leave blank for unauthenticated local server
+    read_only: true
+
+  # ---------------------------------------------------------------------------
+  # Demo: IcePanel Architecture (HTTP, same Azure Function as JAMA)
+  # ---------------------------------------------------------------------------
+  - label: icepanel
+    description: "IcePanel – architecture diagrams (demo dataset)"
+    transport: http
+    url: "${MCP_DEMO_URL:-http://localhost:7070/api}"
+    auth:
+      type: none  # Same server as JAMA; key is handled at the JAMA level
+    read_only: true
+
+  # ---------------------------------------------------------------------------
+  # Azure DevOps MCP (stdio, official Microsoft MCP server)
+  # Requires Node.js and the @microsoft/mcp-server-azuredevops package.
+  # Install: npm install -g @microsoft/mcp-server-azuredevops
+  # ---------------------------------------------------------------------------
+  - label: ado
+    description: "Azure DevOps – work items and sprints"
+    transport: stdio
+    command: node
+    args:
+      - "${ADO_MCP_PATH}"   # Path to the ADO MCP index.js (e.g., /path/to/index.js)
+      - "${ADO_ORG}"        # ADO organization name (e.g., my-org)
+    auth:
+      type: pat
+      env_var: ADO_MCP_AUTH_TOKEN
+      stdio_auth_flag: "--authentication"
+      stdio_auth_value: "envvar"
+    read_only: true
+
+  # ---------------------------------------------------------------------------
+  # EXAMPLE: Add a new custom HTTP MCP server
+  # Uncomment and fill in values to enable.
+  # ---------------------------------------------------------------------------
+  # - label: my_system
+  #   description: "My custom system"
+  #   transport: http
+  #   url: "https://my-server.azurewebsites.net/api"
+  #   auth:
+  #     type: api_key
+  #     header: "x-functions-key"
+  #     env_var: MY_SYSTEM_FUNCTION_KEY
+  #   read_only: true
+
+  # ---------------------------------------------------------------------------
+  # EXAMPLE: Add a new custom stdio MCP server
+  # ---------------------------------------------------------------------------
+  # - label: my_local_mcp
+  #   description: "Local MCP server via Python"
+  #   transport: stdio
+  #   command: python
+  #   args:
+  #     - "${MY_MCP_SCRIPT_PATH}"
+  #   auth:
+  #     type: none
+  #   read_only: true

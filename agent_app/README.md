@@ -1,6 +1,6 @@
-# Olympus Traceability Agent - Local Demo
+# MCP Traceability Agent - Local Demo
 
-This is the first vertical slice of the Olympus Traceability Agent PoC. It demonstrates a local Python agent that uses Azure AI Foundry and the Microsoft Agent Framework to answer user questions.
+This is the first vertical slice of the MCP Traceability Agent PoC. It demonstrates a local Python agent that uses Azure AI Foundry and the Microsoft Agent Framework to answer user questions.
 
 ## Current Status
 
@@ -93,7 +93,7 @@ python -m agent_app.main
 ### Example Interaction
 
 ```
-Olympus Traceability Agent - Local Demo
+MCP Traceability Agent - Local Demo
 ================================================================================
 
 NOTE: This is a demo. MCP server connections will be added next.
@@ -106,7 +106,7 @@ Enter your question (or 'exit' to quit):
 AGENT RESPONSE:
 ================================================================================
 
-I'm the Olympus Traceability Agent. Currently, I'm in a setup phase...
+I'm the MCP Traceability Agent. Currently, I'm in a setup phase...
 [response continues]
 
 ================================================================================

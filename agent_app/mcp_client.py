@@ -226,15 +226,51 @@ MCP_SERVERS = {
 def get_mcp_client(server_name: str) -> MCPClient | StdioMCPClient:
     """Get an MCP client for the specified server.
 
+    Resolution order:
+    1. Registry (mcp_servers.yaml) — auto-initialized on first call if the
+       file exists at the repo root. Add new servers here without code changes.
+    2. Legacy env-var config (backwards compatibility for jama/ado/icepanel).
+
     Args:
-        server_name: Name of MCP server (jama, ado, icepanel)
+        server_name: Server label (e.g., "jama", "ado", "icepanel", or any
+            label defined in mcp_servers.yaml).
 
     Returns:
-        Configured MCPClient or StdioMCPClient instance
+        Configured MCPClient or StdioMCPClient instance.
 
     Raises:
-        ValueError: If server_name is not recognized
+        ValueError: If server_name is not found in the registry or legacy config.
     """
+    import logging
+    from pathlib import Path
+
+    _logger = logging.getLogger(__name__)
+
+    # --- 1. Try the server registry (mcp_servers.yaml) ---
+    try:
+        from agent_app.registry.server_registry import get_registry, init_registry
+
+        registry = get_registry()
+        if registry is None:
+            # Auto-locate mcp_servers.yaml at the repo root (two levels up from
+            # this file: agent_app/mcp_client.py → agent_app/ → repo root)
+            yaml_path = Path(__file__).parent.parent / "mcp_servers.yaml"
+            if yaml_path.exists():
+                registry = init_registry(yaml_path)
+
+        if registry is not None:
+            try:
+                return registry.get_client(server_name)
+            except KeyError:
+                _logger.debug(
+                    "Server '%s' not in registry; falling back to legacy config.",
+                    server_name,
+                )
+    except ImportError:
+        # Registry module not available (shouldn't happen in normal installs)
+        pass
+
+    # --- 2. Legacy: build client from env-var config (jama / ado / icepanel) ---
     from agent_app.config import load_config
 
     config = load_config()
@@ -247,8 +283,8 @@ def get_mcp_client(server_name: str) -> MCPClient | StdioMCPClient:
         server_config = config.mcp.icepanel
     else:
         raise ValueError(
-            f"Unknown MCP server: {server_name}. "
-            f"Valid options: jama, ado, icepanel"
+            f"Unknown MCP server: '{server_name}'. "
+            f"Add an entry to mcp_servers.yaml or use one of: jama, ado, icepanel."
         )
 
     # Create appropriate client based on transport type
@@ -256,9 +292,9 @@ def get_mcp_client(server_name: str) -> MCPClient | StdioMCPClient:
         return MCPClient(server_config.url, None)
     elif server_config.transport == "stdio":
         return StdioMCPClient(
-            server_config.command, 
+            server_config.command,
             server_config.args,
-            env=server_config.env
+            env=server_config.env,
         )
     else:
         raise ValueError(f"Unknown transport type: {server_config.transport}")

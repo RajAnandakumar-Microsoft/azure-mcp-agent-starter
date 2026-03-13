@@ -1,5 +1,5 @@
 """
-Configuration management for the Olympus Traceability Agent.
+Configuration management for the MCP Traceability Agent.
 
 Loads environment variables and provides typed configuration objects.
 """
@@ -131,7 +131,7 @@ def load_config() -> AppConfig:
     # Agent behavior configuration
     agent_config = AgentConfig(
         system_prompt=(
-            "You are the Olympus Traceability Agent. You help users navigate "
+            "You are the MCP Traceability Agent. You help users navigate "
             "and understand relationships across requirements, work items, tests, "
             "and architecture components. You provide summaries and deep links to "
             "artifacts. You never create, modify, or replace authoritative artifacts."

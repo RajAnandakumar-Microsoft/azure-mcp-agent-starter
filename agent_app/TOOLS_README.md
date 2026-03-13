@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Olympus Traceability Agent now includes **7 local tools** that provide read-only access to demo datasets across three systems: JAMA (requirements), Azure DevOps (work items), and IcePanel (architecture components).
+The MCP Traceability Agent now includes **7 local tools** that provide read-only access to demo datasets across three systems: JAMA (requirements), Azure DevOps (work items), and IcePanel (architecture components).
 
 ## Available Tools
 

@@ -193,7 +193,7 @@ def list_related_artifacts(artifact_id: str) -> dict[str, Any]:
             work_item_id = artifact_id.replace("WI-", "")
             base_artifact = client.call_tool(
                 "wit_get_work_item",
-                {"work_item_id": work_item_id, "project": "OlympusDemo"},
+                {"work_item_id": work_item_id, "project": "DemoProject"},
             )
         elif artifact_id.startswith("COMP-"):
             client = get_mcp_client("icepanel")

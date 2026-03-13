@@ -1,1 +1,1 @@
-"""Tests for the Olympus Traceability Agent."""
+"""Tests for the MCP Traceability Agent."""

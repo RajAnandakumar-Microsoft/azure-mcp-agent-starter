@@ -77,9 +77,9 @@ demo_mcp_server/
 
 ```powershell
 # Deploy to Azure (when ready)
-$resourceGroup = "olympus-rg"
+$resourceGroup = "mcp-agent-rg"
 $location = "eastus"
-$appName = "olympus-demo-mcp"
+$appName = "mcp-demo-server"
 
 az functionapp create `
   --resource-group $resourceGroup `
@@ -88,7 +88,7 @@ az functionapp create `
   --runtime-version 3.11 `
   --functions-version 4 `
   --name $appName `
-  --storage-account olympusmcpstorage `
+  --storage-account mcpdemostorage `
   --os-type Linux
 
 func azure functionapp publish $appName

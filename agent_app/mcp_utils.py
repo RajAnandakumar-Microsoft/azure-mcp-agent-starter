@@ -35,7 +35,7 @@ async def fetch_artifact_batch(
                 result = await asyncio.to_thread(
                     client.call_tool,
                     tool_name,
-                    {"work_item_id": artifact_id, "project": "OlympusDemo"},
+                    {"work_item_id": artifact_id, "project": "DemoProject"},
                 )
             else:
                 # JAMA/IcePanel use standard parameter name

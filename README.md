@@ -1,4 +1,4 @@
-# Olympus Traceability Agent - Proof of Concept
+# azure-mcp-agent-starter
 
 This repository demonstrates cross-system traceability using Azure AI Foundry Agent Service, the Microsoft Agent Framework, and the Model Context Protocol (MCP). The agent navigates and links artifacts across requirements management (JAMA), work items (Azure DevOps), and architecture (IcePanel) systems.
 
