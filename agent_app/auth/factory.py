@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from agent_app.auth.api_key import ApiKeyAuthProvider
+from agent_app.auth.azure_identity_provider import AzureIdentityAuthProvider
 from agent_app.auth.none_provider import NoAuthProvider
 from agent_app.auth.oauth import OAuthAuthProvider
 from agent_app.auth.pat import PatAuthProvider
@@ -13,7 +14,13 @@ logger = logging.getLogger(__name__)
 
 def build_auth_provider(
     auth_config: dict[str, Any] | None,
-) -> NoAuthProvider | ApiKeyAuthProvider | PatAuthProvider | OAuthAuthProvider:
+) -> (
+    NoAuthProvider
+    | ApiKeyAuthProvider
+    | PatAuthProvider
+    | OAuthAuthProvider
+    | AzureIdentityAuthProvider
+):
     """Create an AuthProvider from a server config auth block.
 
     Config block shape (from mcp_servers.yaml ``auth:`` section):
@@ -37,11 +44,18 @@ def build_auth_provider(
           stdio_auth_flag: "--authentication"
           stdio_auth_value: "envvar"
 
-        # OAuth delegated (stub — see oauth.py for full implementation)
+        # OAuth via MSAL (confidential or public client)
         auth:
           type: oauth
           tenant_id: "your-tenant-id"
           client_id: "your-app-id"
+          scopes: ["https://graph.microsoft.com/.default"]
+          client_secret_env_var: MY_SECRET  # omit for interactive flow
+
+        # Azure Identity (DefaultAzureCredential)
+        auth:
+          type: azure_identity
+          scopes: ["https://management.azure.com/.default"]
 
     Args:
         auth_config: The parsed yaml ``auth`` dict, or None for no auth.
@@ -74,6 +88,12 @@ def build_auth_provider(
         return OAuthAuthProvider(
             tenant_id=auth_config.get("tenant_id"),
             client_id=auth_config.get("client_id"),
+            scopes=auth_config.get("scopes"),
+            client_secret_env_var=auth_config.get("client_secret_env_var"),
+        )
+
+    if auth_type == "azure_identity":
+        return AzureIdentityAuthProvider(
             scopes=auth_config.get("scopes"),
         )
 

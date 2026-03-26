@@ -44,3 +44,10 @@ class ApiKeyAuthProvider:
     def get_stdio_args(self) -> list[str]:
         """Not used for HTTP transport."""
         return []
+
+    def validate(self) -> list[str]:
+        """Return a list of configuration problems (empty if valid)."""
+        issues: list[str] = []
+        if not self._key:
+            issues.append(f"API key env var is not set (header: '{self._header}')")
+        return issues

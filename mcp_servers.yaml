@@ -29,10 +29,15 @@
 #   stdio_auth_value:  Value for the flag (e.g., "envvar")
 #   (For HTTP servers, the PAT is sent as "Authorization: Bearer <token>".)
 #
-# type: oauth      → Delegated OAuth (stub — see agent_app/auth/oauth.py).
-#   tenant_id:  Azure AD tenant GUID (optional).
-#   client_id:  App registration client ID (optional).
-#   scopes:     List of OAuth scopes.
+# type: oauth      → Delegated OAuth via MSAL.
+#   tenant_id:             Azure AD / Entra ID tenant GUID.
+#   client_id:             App registration client ID.
+#   scopes:                List of OAuth scopes.
+#   client_secret_env_var: Env var holding client secret (omit for interactive).
+#
+# type: azure_identity → Azure Identity (DefaultAzureCredential).
+#   scopes:  List of scopes (e.g., ["https://management.azure.com/.default"]).
+#   Works with az login locally and managed identity in production.
 #
 # ENV VAR INTERPOLATION
 # ---------------------
@@ -87,8 +92,55 @@ servers:
     read_only: true
 
   # ---------------------------------------------------------------------------
-  # EXAMPLE: Add a new custom HTTP MCP server
-  # Uncomment and fill in values to enable.
+  # EXAMPLE: OAuth — Microsoft Graph API (confidential client)
+  # Uses MSAL with a client secret for service-to-service auth.
+  # ---------------------------------------------------------------------------
+  # - label: graph_api
+  #   description: "Microsoft Graph API (OAuth confidential client)"
+  #   transport: http
+  #   url: "https://my-graph-mcp.azurewebsites.net/api"
+  #   auth:
+  #     type: oauth
+  #     tenant_id: "${AZURE_TENANT_ID}"
+  #     client_id: "${GRAPH_CLIENT_ID}"
+  #     scopes:
+  #       - "https://graph.microsoft.com/.default"
+  #     client_secret_env_var: GRAPH_CLIENT_SECRET
+  #   read_only: true
+
+  # ---------------------------------------------------------------------------
+  # EXAMPLE: OAuth — Interactive browser login (public client)
+  # Omit client_secret_env_var to trigger interactive auth on first call.
+  # ---------------------------------------------------------------------------
+  # - label: sharepoint
+  #   description: "SharePoint MCP (interactive OAuth)"
+  #   transport: http
+  #   url: "https://my-sp-mcp.azurewebsites.net/api"
+  #   auth:
+  #     type: oauth
+  #     tenant_id: "${AZURE_TENANT_ID}"
+  #     client_id: "${SP_CLIENT_ID}"
+  #     scopes:
+  #       - "https://graph.microsoft.com/Sites.Read.All"
+  #   read_only: true
+
+  # ---------------------------------------------------------------------------
+  # EXAMPLE: Azure Identity — Azure Resource Manager
+  # Uses DefaultAzureCredential (az login locally, managed identity deployed).
+  # No secrets needed — the simplest auth for Azure-native services.
+  # ---------------------------------------------------------------------------
+  # - label: azure_resources
+  #   description: "Azure Resource Manager MCP"
+  #   transport: http
+  #   url: "https://my-arm-mcp.azurewebsites.net/api"
+  #   auth:
+  #     type: azure_identity
+  #     scopes:
+  #       - "https://management.azure.com/.default"
+  #   read_only: true
+
+  # ---------------------------------------------------------------------------
+  # EXAMPLE: Custom HTTP server with API key
   # ---------------------------------------------------------------------------
   # - label: my_system
   #   description: "My custom system"
@@ -101,7 +153,7 @@ servers:
   #   read_only: true
 
   # ---------------------------------------------------------------------------
-  # EXAMPLE: Add a new custom stdio MCP server
+  # EXAMPLE: Custom stdio server (no auth)
   # ---------------------------------------------------------------------------
   # - label: my_local_mcp
   #   description: "Local MCP server via Python"

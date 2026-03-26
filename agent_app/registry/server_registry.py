@@ -182,6 +182,38 @@ class ServerRegistry:
             return False
         return True
 
+    def validate_credentials(self) -> dict[str, list[str]]:
+        """Check all servers for auth configuration problems.
+
+        Builds the auth provider for each registered server and calls its
+        ``validate()`` method (if available). Returns a dict mapping server
+        labels to lists of issue descriptions. Servers with no issues are
+        omitted.
+
+        Call this at startup to fail fast with clear error messages::
+
+            issues = registry.validate_credentials()
+            if issues:
+                for label, problems in issues.items():
+                    for p in problems:
+                        logger.error("Server '%s': %s", label, p)
+
+        Returns:
+            ``{label: [problem, ...]}`` for servers with issues; empty dict
+            if everything looks good.
+        """
+        all_issues: dict[str, list[str]] = {}
+
+        for label, defn in self._definitions.items():
+            auth = build_auth_provider(defn.get("auth"))
+            validate_fn = getattr(auth, "validate", None)
+            if callable(validate_fn):
+                issues = validate_fn()
+                if issues:
+                    all_issues[label] = issues
+
+        return all_issues
+
     # ------------------------------------------------------------------
     # Client access
     # ------------------------------------------------------------------

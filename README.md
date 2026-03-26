@@ -15,11 +15,11 @@ Clone it, fill in your `.env`, and have a working multi-server agent running in 
 | Feature | Description |
 |---|---|
 | Config-driven servers | Add/remove MCP servers by editing `mcp_servers.yaml` — no code changes |
-| Per-server auth | API key, PAT, OAuth stub, or anonymous — declared per-server in YAML |
+| Per-server auth | API key, PAT, OAuth (MSAL), Azure Identity, or anonymous — declared per-server in YAML |
 | Read-only guardrails | Registry blocks write-prefixed tool calls before they reach any server |
 | Response normalization | Consistent envelope across heterogeneous MCP server responses |
+| Startup credential validation | `validate_credentials()` checks all servers and reports missing/invalid creds at startup |
 | Demo MCP server | Azure Functions app with JAMA + IcePanel fixture data to run locally |
-| 100+ tests | Full coverage of auth providers, registry, normalizer, and MCP protocol |
 
 ---
 
@@ -147,6 +147,110 @@ See [examples/README.md](examples/README.md) for auth recipes, stdio servers, an
 
 ---
 
+## Authentication guide
+
+The starter kit supports **6 auth types** out of the box. Each MCP server declares its own auth block in `mcp_servers.yaml`, so you can mix and match freely — one server with an API key, another with OAuth, a third with Azure Identity.
+
+### `none` — Anonymous / local dev
+
+```yaml
+auth:
+  type: none
+```
+
+No credentials. Use for local dev servers or MCP servers that accept anonymous access.
+
+### `api_key` — HTTP header injection
+
+```yaml
+auth:
+  type: api_key
+  header: "x-functions-key"     # HTTP header name
+  env_var: MY_FUNCTION_KEY      # Env var holding the key
+```
+
+Reads the key from the env var at startup and injects it as an HTTP header on every request. Typical for Azure Functions.
+
+### `pat` — Personal Access Token
+
+```yaml
+auth:
+  type: pat
+  env_var: ADO_MCP_AUTH_TOKEN          # Env var holding the PAT
+  stdio_auth_flag: "--authentication"  # Optional: CLI flag for stdio servers
+  stdio_auth_value: "envvar"           # Optional: value for the flag
+```
+
+- **HTTP servers:** sends as `Authorization: Bearer <token>`.
+- **stdio servers:** injects the env var into the subprocess environment, plus optional CLI flags.
+
+### `oauth` — Delegated OAuth via MSAL
+
+```yaml
+# Confidential client (service-to-service, no user interaction)
+auth:
+  type: oauth
+  tenant_id: "${AZURE_TENANT_ID}"
+  client_id: "${GRAPH_CLIENT_ID}"
+  scopes:
+    - "https://graph.microsoft.com/.default"
+  client_secret_env_var: GRAPH_CLIENT_SECRET
+
+# Public client (interactive browser login — omit client_secret_env_var)
+auth:
+  type: oauth
+  tenant_id: "${AZURE_TENANT_ID}"
+  client_id: "${SP_CLIENT_ID}"
+  scopes:
+    - "https://graph.microsoft.com/Sites.Read.All"
+```
+
+Uses [MSAL](https://learn.microsoft.com/en-us/entra/identity-platform/msal-python) for token acquisition. Supports:
+- **Confidential client** (with `client_secret_env_var`): client-credentials grant, no user interaction
+- **Public client** (without secret): interactive browser login on first call, then silent token refresh
+
+Requires: `pip install msal`
+
+### `azure_identity` — DefaultAzureCredential
+
+```yaml
+auth:
+  type: azure_identity
+  scopes:
+    - "https://management.azure.com/.default"
+```
+
+Uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential) from the Azure Identity SDK. This is the **recommended auth type for Azure-native services** because:
+- Works with `az login` locally
+- Uses managed identity in deployed environments
+- Handles token refresh automatically
+- Requires no client secrets or PATs
+
+Requires: `pip install azure-identity` (already in requirements.txt)
+
+### Startup validation
+
+Call `validate_credentials()` at startup to check all servers have valid auth configuration:
+
+```python
+from agent_app.registry.server_registry import init_registry
+
+registry = init_registry("mcp_servers.yaml")
+issues = registry.validate_credentials()
+for label, problems in issues.items():
+    for p in problems:
+        print(f"⚠️  Server '{label}': {p}")
+```
+
+### Adding a custom auth type
+
+1. Create a new provider class in `agent_app/auth/` implementing `get_headers()`, `get_env_vars()`, `get_stdio_args()`, and `validate()`
+2. Add a case in `agent_app/auth/factory.py`
+3. Export from `agent_app/auth/__init__.py`
+4. Add tests in `agent_app/tests/test_auth_providers.py`
+
+---
+
 ## Repository layout
 
 ```
@@ -154,7 +258,7 @@ azure-mcp-agent-starter/
 ├── .github/
 │   └── copilot-instructions.md    # Copilot rules (single source of truth)
 ├── agent_app/                      # Main agent application
-│   ├── auth/                       # AuthProvider protocol + 4 implementations
+│   ├── auth/                       # AuthProvider protocol + 6 implementations
 │   ├── registry/                   # Config-driven ServerRegistry
 │   ├── normalization/              # Response envelope normalizer
 │   ├── tests/                      # 100+ unit tests

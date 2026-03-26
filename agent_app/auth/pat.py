@@ -64,3 +64,10 @@ class PatAuthProvider:
         if self._token and self._stdio_auth_flag and self._stdio_auth_value:
             return [self._stdio_auth_flag, self._stdio_auth_value]
         return []
+
+    def validate(self) -> list[str]:
+        """Return a list of configuration problems (empty if valid)."""
+        issues: list[str] = []
+        if not self._token:
+            issues.append(f"env var '{self._env_var}' is not set")
+        return issues
