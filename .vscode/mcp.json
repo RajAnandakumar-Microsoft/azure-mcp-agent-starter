@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ado": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\panandakumar\\azure-devops-mcp\\dist\\index.js",
+        "panandakumarMSFT"
+      ],
+      "transport": "stdio"
+    }
+  }
+}

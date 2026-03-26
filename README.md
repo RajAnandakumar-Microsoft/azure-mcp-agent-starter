@@ -1,7 +1,7 @@
 # azure-mcp-agent-starter
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter/actions/workflows/tests.yml/badge.svg)](https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter/actions/workflows/tests.yml)
+[![Tests](https://github.com/RajAnandakumar-Microsoft/azure-mcp-agent-starter/actions/workflows/tests.yml/badge.svg)](https://github.com/RajAnandakumar-Microsoft/azure-mcp-agent-starter/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A starter kit for building Azure AI Foundry agents that connect to **multiple MCP servers simultaneously** — with config-driven server registration, per-server authentication, and read-only safety enforcement built in.
@@ -25,23 +25,45 @@ Clone it, fill in your `.env`, and have a working multi-server agent running in 
 
 ## Architecture
 
-```
-User  ──►  main.py  ──►  AgentsClient (Azure AI Foundry)
-                               │
-                          tools.py  (agent tool definitions)
-                               │
-                        ServerRegistry  (mcp_servers.yaml)
-                               │
-                     AuthProvider  (per-server auth)
-                               │
-                          MCP server  (HTTP / stdio)
-                               │
-                          Normalizer  (standard envelope)
-                               │
-                          ◄── response with deep links
+```mermaid
+flowchart LR
+    U(["👤 User"]):::user -->|"chat query"| MAIN["main.py\nAgent Loop"]:::agent
+
+    subgraph FOUNDRY ["Azure AI Foundry"]
+        MAIN -->|"user prompt +\ntool definitions"| LLM["LLM\n(Responses API)"]:::llm
+        LLM -->|"tool_calls[]"| MAIN
+    end
+
+    MAIN -->|"dispatch by\nfunction name"| TOOLS["tools.py\nTOOL_FUNCTIONS"]:::tools
+
+    subgraph REGISTRY ["Server Registry"]
+        direction TB
+        TOOLS -->|"get_mcp_client(label)"| REG["ServerRegistry\nmcp_servers.yaml"]:::registry
+        REG -->|"build provider"| AUTH["Auth Provider\n(API Key / PAT / OAuth)"]:::auth
+    end
+
+    subgraph MCP_SERVERS ["MCP Servers"]
+        direction TB
+        AUTH -->|"HTTP + headers"| HTTP_MCP["HTTP MCP Server\n(Azure Functions)"]:::mcp
+        AUTH -->|"stdio + env vars"| STDIO_MCP["Stdio MCP Server\n(subprocess)"]:::mcp
+    end
+
+    HTTP_MCP -->|"JSON-RPC response"| NORM["Normalizer\n(standard envelope)"]:::norm
+    STDIO_MCP -->|"JSON-RPC response"| NORM
+    NORM -->|"normalized result"| MAIN
+    MAIN -->|"answer +\ndeep links"| U
+
+    classDef user fill:#E8F5E9,stroke:#388E3C,color:#1B5E20
+    classDef agent fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
+    classDef llm fill:#FFF3E0,stroke:#EF6C00,color:#BF360C
+    classDef tools fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    classDef registry fill:#FFF9C4,stroke:#F9A825,color:#F57F17
+    classDef auth fill:#FFECB3,stroke:#FFA000,color:#E65100
+    classDef mcp fill:#E0F7FA,stroke:#00838F,color:#006064
+    classDef norm fill:#FCE4EC,stroke:#C62828,color:#B71C1C
 ```
 
-The `ServerRegistry` reads `mcp_servers.yaml` at startup. Add a new server by adding a YAML entry — no Python changes required.
+The `ServerRegistry` reads `mcp_servers.yaml` at startup and wires up per-server authentication automatically. Add a new server by adding a YAML entry — no Python changes required.
 
 ---
 
@@ -55,14 +77,14 @@ The `ServerRegistry` reads `mcp_servers.yaml` at startup. Add a new server by ad
 |---|---|---|
 | Python | 3.10+ | Agent runtime |
 | Azure CLI | latest | `az login` for Foundry auth |
-| Node.js + Azure Functions Core Tools | 18+ / v4 | Run demo MCP server locally |
+| Node.js + [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) | 18+ / v4 | Run demo MCP server locally |
 | Azure AI Foundry project | — | Deployed agent required |
 
 **Steps:**
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter.git
+git clone https://github.com/RajAnandakumar-Microsoft/azure-mcp-agent-starter.git
 cd azure-mcp-agent-starter/agent_app
 pip install -r requirements.txt
 

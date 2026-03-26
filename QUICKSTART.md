@@ -63,7 +63,7 @@ az login --tenant <tenant-id>
 
 ## 4. Start the demo MCP server (optional)
 
-The demo server provides JAMA and IcePanel tools with fixture data.
+The demo server provides JAMA and IcePanel tools with fixture data. Requires the [Azure Functions Core Tools](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local) (`func` CLI, v4).
 
 ```bash
 cd demo_mcp_server

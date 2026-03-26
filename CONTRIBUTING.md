@@ -11,7 +11,7 @@ Thank you for considering a contribution to azure-mcp-agent-starter.
 ## Development setup
 
 ```bash
-git clone https://github.com/RajAnandakumar-msft/azure-mcp-agent-starter.git
+git clone https://github.com/RajAnandakumar-Microsoft/azure-mcp-agent-starter.git
 cd azure-mcp-agent-starter/agent_app
 pip install -r requirements.txt
 ```

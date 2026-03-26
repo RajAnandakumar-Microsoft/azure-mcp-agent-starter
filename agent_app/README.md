@@ -1,20 +1,6 @@
-# MCP Traceability Agent - Local Demo
+# agent_app
 
-This is the first vertical slice of the MCP Traceability Agent PoC. It demonstrates a local Python agent that uses Azure AI Foundry and the Microsoft Agent Framework to answer user questions.
-
-## Current Status
-
-**Phase 1: Basic Agent Loop (✅ Current)**
-- Initializes Azure AI Foundry Responses API client
-- Runs a simple agent conversation loop
-- Accepts single-turn user input from CLI
-- Streams agent responses
-- No external SaaS API calls (demo mode only)
-
-**Phase 2: MCP Server Integration (🚧 Next)**
-- Connect to MCP servers for JAMA, ADO, IcePanel
-- Read-only tool calls (search/get/list/relationships)
-- Deep-linking support
+Azure AI Foundry agent that queries multiple MCP servers simultaneously — config-driven server registration, per-server auth, read-only safety enforcement, and normalized responses with deep links.
 
 ## Prerequisites
 
@@ -68,13 +54,13 @@ AZD_ALLOW_NON_EMPTY_FOLDER=true
 # Agent Configuration (optional)
 AGENT_MAX_TOKENS=1000
 AGENT_TEMPERATURE=0.7
-```Before running: Login to Azure
+```
+
+### 4. Log in to Azure
 
 ```powershell
 az login
 ```
-
-### 
 
 ## Running the Agent
 
@@ -93,21 +79,16 @@ python -m agent_app.main
 ### Example Interaction
 
 ```
-MCP Traceability Agent - Local Demo
-================================================================================
+Agent ready. Enter your question (or 'exit' to quit):
 
-NOTE: This is a demo. MCP server connections will be added next.
-
-Enter your question (or 'exit' to quit):
-
-> What can you help me with?
+> What's related to REQ-001?
 
 ================================================================================
 AGENT RESPONSE:
 ================================================================================
 
-I'm the MCP Traceability Agent. Currently, I'm in a setup phase...
-[response continues]
+REQ-001 links to work item WI-101 and architecture component COMP-201.
+Deep link: https://demo-viewer.example.com/jama/REQ-001
 
 ================================================================================
 ```
@@ -125,54 +106,33 @@ pytest --cov=agent_app --cov-report=term-missing
 pytest -v
 ```
 
-## Project Structure
+## Project structure
 
 ```
 agent_app/
-├── __init__.py          # Package initialization
+├── auth/                # Per-server auth providers (api_key, PAT, OAuth, anonymous)
+├── normalization/       # Response normalizer — standard envelope across all servers
+├── registry/            # ServerRegistry — loads mcp_servers.yaml
+├── tests/               # Unit tests
 ├── config.py            # Environment loading and typed configuration
 ├── main.py              # Entry point and agent run loop
+├── mcp_client.py        # JSON-RPC 2.0 HTTP + stdio MCP clients
+├── mcp_utils.py         # Parallel MCP fetch utilities
 ├── requirements.txt     # Python dependencies
-├── README.md            # This file
-└── tests/
-    ├── __init__.py
-    └── test_config.py   # Configuration tests
+└── tools.py             # Agent tool definitions
 ```
 
-## Error HandlingEXISTING_AIPROJECT_ENDPOINT
-   ```
-   Solution: Ensure `.env` file exists in the repository root with all required values.
+## Error reference
 
-2. **Authentication error:**
-   ```
-   Error during agent run: Unauthorized
-   ```
-   Solution: Run `az login` to authenticate with Azure AD.
+| Error | Cause | Fix |
+|---|---|---|
+| `AZURE_EXISTING_AIPROJECT_ENDPOINT not set` | Missing `.env` | Create `.env` from `.env.example` |
+| `Unauthorized` | Not logged in | Run `az login` |
+| `Cannot find agent` | Wrong agent ID | Verify ID in Azure AI Foundry portal |
+| `DeploymentNotFound` | Wrong deployment name | Check deployed models in your Foundry project |
 
-3. **Agent not found:**
-   ```
-   Error: Cannot find agent 'your-agent-id:1' in your Foundry project.
-   ```
-   Solution: Verify the agent ID exists in your Foundry project. Check the agent list in Azure AI Foundry portal
+## Development notes
 
-3. **Deployment not found:**
-   ```
-   Error: DeploymentNotFound
-   ```
-   Solution: Ensure the deployment name matches a deployed model in your Foundry project.
-
-## Next Steps
-
-- [ ] Add MCP server integration (JAMA, ADO, IcePanel wrappers)
-- [ ] Implement read-only tools for artifact retrieval
-- [ ] Add deep-linkingUses Azure AD (DefaultAzureCredential) - requires `az login`.
-- **Agent Service:** Uses existing agents from Foundry Agent Service (ChatAgent + AzureAIAgentClient)
-- [ ] Add multi-turn conversation support
-
-## Development Notes
-
-- **Demo Mode Only:** This agent does NOT call customer SaaS APIs (JAMA/ADO/IcePanel).
-- **Authentication:** Currently uses API key auth. Azure AD support can be added.
-- **Single-Turn:** This version handles one question at a time. Multi-turn support coming next.
-- **Formatting:** Code follows Ruff formatting (88 char line length).
-- **Type Safety:** All functions include type hints per repo standards.
+- **Authentication:** Azure AD (`DefaultAzureCredential`) via `az login`.
+- **Formatting:** Ruff, 88-char line length, double quotes.
+- **Type safety:** All functions include type hints.

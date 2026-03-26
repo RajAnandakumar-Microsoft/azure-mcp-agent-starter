@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MCP Traceability Agent now includes **7 local tools** that provide read-only access to demo datasets across three systems: JAMA (requirements), Azure DevOps (work items), and IcePanel (architecture components).
+Read-only tools that call MCP servers across three demo systems: JAMA (requirements), Azure DevOps (work items), and IcePanel (architecture components).
 
 ## Available Tools
 
@@ -83,15 +83,15 @@ List all artifacts related to a given requirement, work item, component, or test
 ### Technology Stack
 - **Tool Definitions:** `FunctionToolDefinition` + `FunctionDefinition` from `azure.ai.agents.models`
 - **Tool Execution:** Local Python functions with JSON return values
-- **Data Layer:** In-memory demo datasets in `agent_app/demo_data.py`
+- **Data Layer:** JSON fixture data in `demo_mcp_server/demo_data.py`
 
 ### Tool Calling Flow
 1. User asks a question
-2. Agent analyzes the question and selects appropriate tools
-3. Agent calls tools with extracted parameters
-4. Local Python functions execute and return JSON results
-5. Agent processes tool outputs and synthesizes a response
-6. Agent presents results with formatted text and deep links
+2. Azure AI Foundry agent selects appropriate tools
+3. Agent calls the tool with extracted parameters
+4. Tool calls the MCP server via JSON-RPC 2.0 (`MCPClient`)
+5. MCP server returns a response; `Normalizer` applies the standard envelope
+6. Agent synthesizes a response with deep links
 
 ### Deep Links
 Every artifact returned includes a `deeplink_url` field:
@@ -135,28 +135,3 @@ $env:PYTHONPATH='<path-to-workspace>'
 .venv\Scripts\python.exe test_agent_tools.py
 ```
 
-## Next Steps (Phase 2)
-
-Now that local tools are working, the next phase will:
-
-1. **Build MCP Server Wrappers** - Deploy Azure Functions that expose these tools as MCP servers
-2. **Implement Real-Time Demo Viewer** - Create a simple web viewer for deep links
-3. **Add Impact Analysis** - Extend `list_related_artifacts` to support 2-hop traversal
-4. **Add Clarifying Questions** - Teach agent to ask for disambiguation when needed
-5. **Add RAG Capabilities** - Enable semantic search over artifact content (if required)
-
-## Architecture Notes
-
-### Why Local Tools First?
-- **Validate Tool Calling Pattern:** Ensures agent can invoke tools correctly before adding MCP complexity
-- **Fast Iteration:** Local Python functions are easier to debug than remote MCP endpoints
-- **POC Scope:** Demo datasets sufficient for capabilities demonstration
-- **Read-Only Constraint:** All tools follow repo standard (no create/update/delete operations)
-
-### Transition to MCP Servers
-When ready to build MCP servers:
-- Tool definitions will move to Azure Functions
-- Tool functions will become HTTP endpoints
-- Agent will call MCP servers instead of local functions
-- Same tool signatures and return formats will be preserved
-- `TOOL_FUNCTIONS` mapping becomes HTTP client
