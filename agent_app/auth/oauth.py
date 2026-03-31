@@ -23,9 +23,13 @@ See: https://learn.microsoft.com/en-us/entra/identity-platform/msal-python
 
 import logging
 import os
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Evict stale MSAL token caches after this many seconds.
+_CACHE_MAX_AGE_SECONDS: int = 3600
 
 # MSAL is an optional dependency — gracefully degrade if not installed.
 try:
@@ -70,6 +74,7 @@ class OAuthAuthProvider:
         )
         self._app: Any = None
         self._cached_token: str = ""
+        self._cache_created_at: float = 0.0
 
         if not _MSAL_AVAILABLE:
             logger.warning(
@@ -101,6 +106,7 @@ class OAuthAuthProvider:
                 authority=authority,
             )
 
+        self._cache_created_at = time.monotonic()
         return self._app
 
     def _acquire_token(self) -> str:
@@ -111,6 +117,14 @@ class OAuthAuthProvider:
         """
         if not _MSAL_AVAILABLE or not self._client_id:
             return ""
+
+        # Evict stale cache to prevent unbounded memory growth
+        if self._cache_created_at and (
+            time.monotonic() - self._cache_created_at > _CACHE_MAX_AGE_SECONDS
+        ):
+            logger.debug("OAuthAuthProvider: clearing stale MSAL token cache")
+            self._app = None
+            self._cache_created_at = 0.0
 
         app = self._get_app()
 

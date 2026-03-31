@@ -6,6 +6,8 @@ MCP servers must be running locally or deployed to Azure Functions.
 
 import asyncio
 import logging
+import os
+import re
 from typing import Any
 
 from azure.ai.agents.models import FunctionDefinition, FunctionToolDefinition
@@ -14,6 +16,35 @@ from agent_app.mcp_client import get_mcp_client
 from agent_app.mcp_utils import fetch_related_artifacts_parallel
 
 logger = logging.getLogger(__name__)
+
+# Configurable ADO project name — must be set by the client in their .env
+_ADO_PROJECT: str = os.getenv("ADO_PROJECT", "")
+
+# Pattern for recognized artifact ID formats
+_ARTIFACT_ID_PATTERN = re.compile(r"^(REQ|WI|COMP|TEST)-\d+$", re.IGNORECASE)
+
+
+def _validate_artifact_id(artifact_id: str) -> str:
+    """Validate and normalize an artifact ID.
+
+    Accepts formats like REQ-001, WI-101, COMP-201, TEST-301,
+    or plain numeric IDs for work items.
+
+    Raises:
+        ValueError: If the artifact ID format is invalid.
+    """
+    artifact_id = artifact_id.strip()
+    if not artifact_id:
+        raise ValueError("Artifact ID cannot be empty")
+    # Allow plain numeric IDs for work items
+    if artifact_id.isdigit():
+        return artifact_id
+    if not _ARTIFACT_ID_PATTERN.match(artifact_id):
+        raise ValueError(
+            f"Invalid artifact ID format: '{artifact_id}'. "
+            f"Expected format: REQ-NNN, WI-NNN, COMP-NNN, or TEST-NNN"
+        )
+    return artifact_id.upper()
 
 
 def search_requirements(query: str) -> dict[str, Any]:
@@ -93,16 +124,17 @@ def search_work_items(query: str) -> dict[str, Any]:
     return client.call_tool("search_workitem", {"searchText": query})
 
 
-def get_my_work_items(project: str = "pocdemo", include_completed: bool = False) -> dict[str, Any]:
+def get_my_work_items(project: str = "", include_completed: bool = False) -> dict[str, Any]:
     """Get work items assigned to the current user in Azure DevOps.
 
     Args:
-        project: Project name (default: "pocdemo")
+        project: Project name (uses ADO_PROJECT env var if not provided)
         include_completed: Whether to include completed work items
 
     Returns:
         Dictionary with list of assigned work items
     """
+    project = project or _ADO_PROJECT
     client = get_mcp_client("ado")
     return client.call_tool("wit_my_work_items", {
         "project": project,
@@ -110,7 +142,7 @@ def get_my_work_items(project: str = "pocdemo", include_completed: bool = False)
     })
 
 
-def get_work_item(work_item_id: str, project: str = "pocdemo") -> dict[str, Any]:
+def get_work_item(work_item_id: str, project: str = "") -> dict[str, Any]:
     """Retrieve a specific work item by ID from Azure DevOps.
 
     Returns full work item details including type, title, state,
@@ -118,11 +150,12 @@ def get_work_item(work_item_id: str, project: str = "pocdemo") -> dict[str, Any]
 
     Args:
         work_item_id: The work item ID (e.g., 'WI-101' or '101')
-        project: The Azure DevOps project name (default: 'pocdemo')
+        project: The Azure DevOps project name (uses ADO_PROJECT env var if not provided)
 
     Returns:
         Dictionary with work item details or error if not found
     """
+    project = project or _ADO_PROJECT
     client = get_mcp_client("ado")
     # Convert to int if it's a numeric string
     try:
@@ -182,6 +215,8 @@ def list_related_artifacts(artifact_id: str) -> dict[str, Any]:
     )
 
     try:
+        artifact_id = _validate_artifact_id(artifact_id)
+
         # 1. Determine source system and fetch base artifact
         if artifact_id.startswith("REQ-"):
             client = get_mcp_client("jama")
@@ -193,7 +228,7 @@ def list_related_artifacts(artifact_id: str) -> dict[str, Any]:
             work_item_id = artifact_id.replace("WI-", "")
             base_artifact = client.call_tool(
                 "wit_get_work_item",
-                {"work_item_id": work_item_id, "project": "DemoProject"},
+                {"work_item_id": work_item_id, "project": _ADO_PROJECT},
             )
         elif artifact_id.startswith("COMP-"):
             client = get_mcp_client("icepanel")
@@ -352,7 +387,7 @@ def get_tool_definitions() -> list[FunctionToolDefinition]:
                     "properties": {
                         "project": {
                             "type": "string",
-                            "description": "Project name (default: 'pocdemo')",
+                            "description": "Project name (uses ADO_PROJECT env var if not provided)",
                         },
                         "include_completed": {
                             "type": "boolean",

@@ -2,11 +2,14 @@
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 from agent_app.mcp_client import get_mcp_client
 
 logger = logging.getLogger(__name__)
+
+_ADO_PROJECT: str = os.getenv("ADO_PROJECT", "")
 
 
 async def fetch_artifact_batch(
@@ -35,7 +38,7 @@ async def fetch_artifact_batch(
                 result = await asyncio.to_thread(
                     client.call_tool,
                     tool_name,
-                    {"work_item_id": artifact_id, "project": "DemoProject"},
+                    {"work_item_id": artifact_id, "project": _ADO_PROJECT},
                 )
             else:
                 # JAMA/IcePanel use standard parameter name

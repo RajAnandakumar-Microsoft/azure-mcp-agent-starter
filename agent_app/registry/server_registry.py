@@ -67,6 +67,33 @@ def _interpolate(value: str) -> str:
     return _ENV_VAR_PATTERN.sub(replacer, value)
 
 
+def _validate_subprocess_arg(value: str, context: str) -> str:
+    """Validate an interpolated value is safe for subprocess use.
+
+    Rejects null bytes and control characters that could cause
+    unexpected behavior in subprocess arguments.
+
+    Args:
+        value: The interpolated string to validate.
+        context: Description for error messages (e.g., "command", "arg").
+
+    Raises:
+        ValueError: If the value contains unsafe characters.
+
+    Returns:
+        The validated value (unchanged).
+    """
+    if "\x00" in value:
+        raise ValueError(f"Subprocess {context} contains null byte")
+    for char in value:
+        if ord(char) < 32 and char not in ("\t",):
+            raise ValueError(
+                f"Subprocess {context} contains control character "
+                f"(U+{ord(char):04X})"
+            )
+    return value
+
+
 def _is_write_tool(tool_name: str) -> bool:
     """Return True if the tool name matches a known write/mutation prefix."""
     lower = tool_name.lower()
@@ -122,8 +149,17 @@ class ServerRegistry:
                 f"MCP server config not found: {config_path.resolve()}"
             )
 
-        with config_path.open(encoding="utf-8") as f:
-            raw = yaml.safe_load(f)
+        try:
+            with config_path.open(encoding="utf-8") as f:
+                raw = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"Failed to parse MCP server config at "
+                f"{config_path.resolve()}: {e}"
+            ) from e
+
+        if raw is None:
+            raw = {}
 
         servers = raw.get("servers", [])
         if not isinstance(servers, list):
@@ -215,6 +251,27 @@ class ServerRegistry:
         return all_issues
 
     # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def shutdown(self) -> None:
+        """Close all cached stdio clients and release resources.
+
+        Call this during application shutdown to terminate any spawned
+        MCP server subprocesses cleanly.
+        """
+        for label, client in self._clients.items():
+            if isinstance(client, StdioMCPClient):
+                try:
+                    client.close()
+                    logger.debug("Closed stdio client for '%s'", label)
+                except Exception as e:
+                    logger.warning(
+                        "Error closing stdio client for '%s': %s", label, e
+                    )
+        self._clients.clear()
+
+    # ------------------------------------------------------------------
     # Client access
     # ------------------------------------------------------------------
 
@@ -278,9 +335,13 @@ class ServerRegistry:
             return client
 
         if transport == "stdio":
-            command = _interpolate(defn.get("command", ""))
+            command = _validate_subprocess_arg(
+                _interpolate(defn.get("command", "")), "command"
+            )
             raw_args: list[str] = defn.get("args", [])
-            args = [_interpolate(a) for a in raw_args]
+            args = [
+                _validate_subprocess_arg(_interpolate(a), "arg") for a in raw_args
+            ]
 
             # Append auth CLI flags (e.g., --authentication envvar)
             auth_args = auth.get_stdio_args()

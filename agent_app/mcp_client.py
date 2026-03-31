@@ -3,11 +3,57 @@
 Provides HTTP and stdio client wrappers for calling MCP servers using JSON-RPC 2.0 protocol.
 """
 
+import atexit
 import json
+import logging
 import subprocess
+import threading
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
+
+# Timeout bounds for MCP server calls (seconds).
+_DEFAULT_TIMEOUT: int = 30
+_MIN_TIMEOUT: int = 1
+_MAX_TIMEOUT: int = 300
+
+# Track all stdio clients for atexit cleanup.
+_active_stdio_clients: list["StdioMCPClient"] = []
+_cleanup_lock = threading.Lock()
+
+
+class MCPError(Exception):
+    """Raised when an MCP tool call fails.
+
+    Provides a consistent error type for both HTTP and stdio transports.
+    """
+
+    def __init__(self, message: str, code: int | None = None) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+def _clamp_timeout(timeout: int | None) -> int:
+    """Ensure timeout is within safe bounds."""
+    if timeout is None:
+        return _DEFAULT_TIMEOUT
+    return max(_MIN_TIMEOUT, min(timeout, _MAX_TIMEOUT))
+
+
+def _cleanup_stdio_clients() -> None:
+    """Terminate all active stdio MCP server subprocesses on exit."""
+    with _cleanup_lock:
+        for client in _active_stdio_clients:
+            try:
+                client.close()
+            except Exception:
+                pass
+        _active_stdio_clients.clear()
+
+
+atexit.register(_cleanup_stdio_clients)
 
 
 class MCPClient:
@@ -28,26 +74,25 @@ class MCPClient:
         self.request_id = 0
 
     def call_tool(
-        self, tool_name: str, parameters: dict[str, Any], timeout: int = 30
+        self, tool_name: str, parameters: dict[str, Any], timeout: int | None = 30
     ) -> dict[str, Any]:
         """Call an MCP server tool using JSON-RPC 2.0 protocol.
 
         Args:
             tool_name: Name of the tool (e.g., 'search_requirements')
             parameters: Tool parameters as dictionary
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (clamped to 1–300; None → 30)
 
         Returns:
             Tool response data (unwrapped from MCP content)
 
         Raises:
-            requests.RequestException: If request fails
-            ValueError: If JSON-RPC response indicates error
+            MCPError: If the MCP server returns an error
+            requests.RequestException: If the HTTP request itself fails
         """
-        # Increment request ID
+        timeout = _clamp_timeout(timeout)
         self.request_id += 1
 
-        # Build JSON-RPC 2.0 request
         jsonrpc_request = {
             "jsonrpc": "2.0",
             "id": self.request_id,
@@ -55,36 +100,34 @@ class MCPClient:
             "params": {"name": tool_name, "arguments": parameters},
         }
 
-        # Send request to MCP endpoint
         url = f"{self.base_url}/mcp"
+        logger.debug("MCP HTTP → %s tool=%s", url, tool_name)
+
         response = requests.post(
             url, json=jsonrpc_request, headers=self.headers, timeout=timeout
         )
         response.raise_for_status()
 
-        # Parse JSON-RPC response
         jsonrpc_response = response.json()
 
-        # Check for JSON-RPC error
         if "error" in jsonrpc_response:
             error = jsonrpc_response["error"]
-            raise ValueError(
-                f"MCP tool error: {error.get('message', 'Unknown error')} "
-                f"(code: {error.get('code')})"
+            raise MCPError(
+                f"MCP tool error: {error.get('message', 'Unknown error')}",
+                code=error.get("code"),
             )
 
-        # Extract result
         result = jsonrpc_response.get("result", {})
 
-        # Check for MCP tool error
         if result.get("isError"):
             content = result.get("content", [{}])[0]
             error_data = json.loads(content.get("text", "{}"))
-            raise ValueError(f"Tool execution error: {error_data.get('error')}")
+            raise MCPError(f"Tool execution error: {error_data.get('error')}")
 
-        # Unwrap MCP content and return the actual data
         content = result.get("content", [{}])[0]
-        return json.loads(content.get("text", "{}"))
+        data = json.loads(content.get("text", "{}"))
+        logger.debug("MCP HTTP ← %s returned %d keys", tool_name, len(data))
+        return data
 
 
 class StdioMCPClient:
@@ -103,48 +146,52 @@ class StdioMCPClient:
         self.env = env
         self.request_id = 0
         self.process: subprocess.Popen | None = None
+        self._lock = threading.Lock()
+        with _cleanup_lock:
+            _active_stdio_clients.append(self)
 
     def _ensure_process(self) -> subprocess.Popen:
-        """Ensure MCP server process is running."""
-        if self.process is None or self.process.poll() is not None:
-            import os
-            # Merge custom env vars with current environment
-            process_env = os.environ.copy()
-            if self.env:
-                process_env.update(self.env)
-            
-            self.process = subprocess.Popen(
-                [self.command] + self.args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                env=process_env,
-            )
-        return self.process
+        """Ensure MCP server process is running (thread-safe)."""
+        with self._lock:
+            if self.process is None or self.process.poll() is not None:
+                import os
+
+                process_env = os.environ.copy()
+                if self.env:
+                    process_env.update(self.env)
+
+                logger.debug("MCP stdio: spawning %s", self.command)
+                self.process = subprocess.Popen(
+                    [self.command] + self.args,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    env=process_env,
+                )
+                logger.debug("MCP stdio: spawned pid=%d", self.process.pid)
+            return self.process
 
     def call_tool(
-        self, tool_name: str, parameters: dict[str, Any], timeout: int = 30
+        self, tool_name: str, parameters: dict[str, Any], timeout: int | None = 30
     ) -> dict[str, Any]:
         """Call an MCP server tool using JSON-RPC 2.0 over stdio.
 
         Args:
             tool_name: Name of the tool (e.g., 'mcp_ado_wit_get_work_item')
             parameters: Tool parameters as dictionary
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (clamped to 1–300; None → 30)
 
         Returns:
             Tool response data (unwrapped from MCP content)
 
         Raises:
-            RuntimeError: If process communication fails
-            ValueError: If JSON-RPC response indicates error
+            MCPError: If the MCP server returns an error or communication fails
         """
-        # Increment request ID
+        timeout = _clamp_timeout(timeout)
         self.request_id += 1
 
-        # Build JSON-RPC 2.0 request
         jsonrpc_request = {
             "jsonrpc": "2.0",
             "id": self.request_id,
@@ -152,56 +199,60 @@ class StdioMCPClient:
             "params": {"name": tool_name, "arguments": parameters},
         }
 
-        # Ensure process is running
         process = self._ensure_process()
+        logger.debug("MCP stdio → tool=%s pid=%d", tool_name, process.pid)
 
-        # Send request to stdin
         request_line = json.dumps(jsonrpc_request) + "\n"
         process.stdin.write(request_line)
         process.stdin.flush()
 
-        # Read response from stdout
         try:
             response_line = process.stdout.readline()
             if not response_line:
-                raise RuntimeError("MCP server closed connection")
+                raise MCPError("MCP server closed connection")
 
             jsonrpc_response = json.loads(response_line)
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"Invalid JSON response from MCP server: {e}")
+            raise MCPError(f"Invalid JSON response from MCP server: {e}")
 
-        # Check for JSON-RPC error
         if "error" in jsonrpc_response:
             error = jsonrpc_response["error"]
-            raise ValueError(
-                f"MCP tool error: {error.get('message', 'Unknown error')} "
-                f"(code: {error.get('code')})"
+            raise MCPError(
+                f"MCP tool error: {error.get('message', 'Unknown error')}",
+                code=error.get("code"),
             )
 
-        # Extract result
         result = jsonrpc_response.get("result", {})
 
-        # Check for MCP tool error
         if result.get("isError"):
             content = result.get("content", [{}])[0]
             error_text = content.get("text", "Unknown MCP error")
-            raise ValueError(f"MCP tool returned error: {error_text}")
+            raise MCPError(f"MCP tool returned error: {error_text}")
 
-        # Unwrap MCP content
         content = result.get("content", [])
         if not content:
             return {}
 
-        # Return first content item's text as parsed JSON
         text = content[0].get("text", "{}")
-        return json.loads(text)
+        data = json.loads(text)
+        logger.debug("MCP stdio ← %s returned %d keys", tool_name, len(data))
+        return data
 
     def close(self) -> None:
-        """Close the MCP server process."""
+        """Close the MCP server process and unregister from cleanup list."""
         if self.process:
-            self.process.terminate()
-            self.process.wait(timeout=5)
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=5)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
             self.process = None
+        with _cleanup_lock:
+            if self in _active_stdio_clients:
+                _active_stdio_clients.remove(self)
 
 
 # MCP Server configurations

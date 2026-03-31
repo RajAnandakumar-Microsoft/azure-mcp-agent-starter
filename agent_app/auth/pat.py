@@ -37,10 +37,9 @@ class PatAuthProvider:
         self._stdio_auth_value = stdio_auth_value
         self._http_header = http_header
         if not self._token:
-            logger.debug(
-                "PatAuthProvider: env var '%s' is not set; "
-                "requests to this server may fail authentication.",
-                env_var,
+            logger.warning(
+                "PatAuthProvider: required credential environment variable "
+                "is not set; requests to this server may fail authentication.",
             )
 
     def get_headers(self) -> dict[str, str]:

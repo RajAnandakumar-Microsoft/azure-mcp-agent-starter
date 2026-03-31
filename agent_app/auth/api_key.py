@@ -25,10 +25,9 @@ class ApiKeyAuthProvider:
         self._header = header
         self._key = os.getenv(env_var, "")
         if not self._key:
-            logger.debug(
-                "ApiKeyAuthProvider: env var '%s' is not set; "
-                "requests to this server will be unauthenticated.",
-                env_var,
+            logger.warning(
+                "ApiKeyAuthProvider: required credential environment variable "
+                "is not set; requests to this server will be unauthenticated.",
             )
 
     def get_headers(self) -> dict[str, str]:

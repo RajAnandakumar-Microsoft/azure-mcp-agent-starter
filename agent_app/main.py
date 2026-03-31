@@ -428,6 +428,13 @@ def main() -> None:
         logger.error(f"Fatal error: {e}", exc_info=True)
         console.print(f"[red]✗ Fatal error: {e}[/red]")
         sys.exit(1)
+    finally:
+        # Ensure all spawned MCP server subprocesses are cleaned up
+        from agent_app.registry.server_registry import get_registry
+
+        registry = get_registry()
+        if registry is not None:
+            registry.shutdown()
 
 
 if __name__ == "__main__":
