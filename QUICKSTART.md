@@ -90,6 +90,10 @@ Example queries to try:
 
 **No code changes required.** Edit `mcp_servers.yaml`:
 
+> **Not sure which servers are available?** See [`MCP_SERVERS_DIRECTORY.md`](MCP_SERVERS_DIRECTORY.md)
+> for a catalog of official Microsoft, Jama, IcePanel, and community MCP servers
+> with copy-paste YAML configs.
+
 ```yaml
 servers:
   # ... existing entries ...
@@ -138,6 +142,7 @@ See `examples/auth_patterns.md` for complete recipes with copy-paste config.
 
 ```
 mcp_servers.yaml        ← Server registry: add new servers here
+MCP_SERVERS_DIRECTORY.md ← Catalog of available servers to plug in
 agent_app/
   auth/                 ← Per-server auth providers (api_key, pat, oauth, none)
   registry/             ← ServerRegistry: loads YAML, creates clients

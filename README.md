@@ -112,6 +112,10 @@ Try asking:
 
 ## Adding your own MCP server (4 steps, no code)
 
+> **Looking for servers to connect?** See [`MCP_SERVERS_DIRECTORY.md`](MCP_SERVERS_DIRECTORY.md) for
+> 25+ official Microsoft MCP servers, plus Jama Connect, IcePanel, and community
+> servers — each with ready-to-use `mcp_servers.yaml` configs.
+
 **1.** Add an entry to `mcp_servers.yaml`:
 
 ```yaml
@@ -277,6 +281,7 @@ azure-mcp-agent-starter/
 │   ├── auth_patterns.md            # Auth recipe examples
 │   └── custom_http_server/README.md
 ├── mcp_servers.yaml                # Server registry (edit to add/remove servers)
+├── MCP_SERVERS_DIRECTORY.md        # Catalog of available MCP servers to plug in
 ├── .env.example                    # Environment variable template
 ├── QUICKSTART.md                   # 10-minute setup guide
 ├── ruff.toml                       # Linter / formatter config
